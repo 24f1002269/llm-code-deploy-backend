@@ -1,0 +1,10 @@
+{
+    "email": "student@example.com",
+    "secret": "tdssecret2025",
+    "task": "hello-world-test",
+    "round": 1,
+    "nonce": "12345",
+    "brief": "Display 'Hello World!' dynamically",
+    "evaluation_url": "https://example.com/notify"
+  }
+  
