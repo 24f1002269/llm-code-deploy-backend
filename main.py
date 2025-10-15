@@ -36,8 +36,9 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
 
     system_prompt = (
         "You are an expert full-stack web engineer. "
-        "Generate minimal self-contained front-end code (HTML + optional CSS + JS) "
-        "for the described app. Do NOT include explanations or markdown fences. "
+        "Generate fully working front-end code (HTML + optional CSS + JS) "
+        "for the described app. Do NOT echo the brief. "
+        "Do NOT include explanations or markdown fences. "
         "Output raw code files with filenames (e.g., index.html, script.js, style.css)."
     )
 
@@ -69,7 +70,7 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
     )
     code_text = response.choices[0].message["content"].strip()
 
-    # naive splitting: assume LLM outputs in format "Filename:\n<code>"
+    # naive splitting: assume LLM outputs in format "filename.ext:\n<code>"
     files = {}
     current_file = None
     buffer = []
@@ -119,7 +120,6 @@ def create_or_update_repo(email: str, task: str, round_num: int, code_files: dic
             repo.create_file(path, f"Add {path}", content)
         # Add README
         repo.create_file("README.md", "Add README", f"# {task}\n\nGenerated via LLM pipeline")
-        # Save all files in memory
         stored_files = code_files.copy()
     else:
         prev = task_repos.get(key)
