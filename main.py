@@ -1,9 +1,8 @@
-# main.py
 from fastapi import FastAPI, HTTPException, Request
 import os, requests, uuid
 from datetime import datetime
 from github import Github
-import openai
+from openai import OpenAI
 
 # ----------------------------- CONFIG --------------------------------
 app = FastAPI()
@@ -12,7 +11,9 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "testsecret")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 AIPIPE_KEY = os.environ.get("AIPIPE_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", AIPIPE_KEY)
-openai.api_key = OPENAI_API_KEY
+
+# Initialize OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ----------------------------- IN-MEMORY STORAGE ---------------------
 # { (email, task): {"repo_url":..., "commit_sha":..., "pages_url":..., "timestamp":..., "files": {filename: content} } }
@@ -55,7 +56,8 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
 """
 
     print(f"\n🔹 Sending prompt to LLM (Round {round_num}) ...")
-    response = openai.ChatCompletion.create(
+
+    response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -63,7 +65,8 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
         ],
         temperature=0.3,
     )
-    code_text = response.choices[0].message["content"].strip()
+
+    code_text = response.choices[0].message.content.strip()
 
     # naive splitting: assume LLM outputs "filename.ext:\n<code>"
     files = {}
