@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 import os, requests, uuid
 from datetime import datetime
 from github import Github
@@ -9,8 +9,6 @@ app = FastAPI()
 SECRET_KEY = os.environ.get("SECRET_KEY", "testsecret")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 AIPIPE_KEY = os.environ.get("AIPIPE_KEY")
-
-
 
 # ----------------------------- IN-MEMORY STORAGE ---------------------
 # { (email, task): {"repo_url":..., "commit_sha":..., "pages_url":..., "timestamp":..., "files": {filename: content} } }
@@ -67,7 +65,7 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
     r.raise_for_status()
     code_text = r.json()["choices"][0]["message"]["content"].strip()
 
-    # Same file-splitting logic as before
+    # Split into files
     files = {}
     current_file = None
     buffer = []
@@ -90,7 +88,6 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
             files[fname] = content
 
     return files
-
 
 
 def safe_repo_name(task_id: str):
@@ -165,6 +162,34 @@ def notify_evaluation(evaluation_url, payload):
         print("⚠️ Evaluation callback failed:", e)
         return False
 
+# -------------------- BACKGROUND WORKER --------------------
+def process_task(email, task, briefs_rounds, attachments, round_num, nonce, evaluation_url):
+    existing_files = task_repos.get((email, task), {}).get("files", {})
+
+    for i, r in enumerate(briefs_rounds):
+        rn = i + 1
+        try:
+            code_files = call_llm_generate_code(
+                r["brief"], r.get("checks", []),
+                attachments=attachments,
+                existing_files=existing_files,
+                round_num=rn
+            )
+            repo, repo_url, pages_url, commit_sha = create_or_update_repo(email, task, rn, code_files)
+            existing_files = task_repos.get((email, task), {}).get("files", {})
+            if evaluation_url:
+                payload = {
+                    "email": email,
+                    "task": task,
+                    "round": rn,
+                    "nonce": nonce,
+                    "repo_url": repo_url,
+                    "pages_url": pages_url,
+                    "commit_sha": commit_sha
+                }
+                notify_evaluation(evaluation_url, payload)
+        except Exception as e:
+            print(f"⚠️ Error processing round {rn}: {e}")
 
 # ----------------------------- ROUTES --------------------------------
 
@@ -174,11 +199,8 @@ async def root():
 
 
 @app.post("/api-endpoint")
-async def handle_task(request: Request):
+async def handle_task(request: Request, background_tasks: BackgroundTasks):
     data = await request.json()
-    print("\n===== Incoming Task =====")
-    print(data)
-    print("=========================\n")
 
     if data.get("secret") != SECRET_KEY:
         raise HTTPException(status_code=403, detail="Invalid secret key")
@@ -193,48 +215,16 @@ async def handle_task(request: Request):
     for r2 in data.get("round2", []):
         briefs_rounds.append({"brief": r2.get("brief", ""), "checks": r2.get("checks", [])})
 
-    existing_files = task_repos.get((email, task), {}).get("files", {})
-    results = []
+    attachments = data.get("attachments", {})
 
-    for i, r in enumerate(briefs_rounds):
-        rn = i + 1
-        print(f"\n--- Processing Round {rn} ---")
-        try:
-            code_files = call_llm_generate_code(
-                r["brief"], r.get("checks", []),
-                attachments=data.get("attachments", {}),
-                existing_files=existing_files,
-                round_num=rn
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"LLM generation failed: {e}")
+    # Run the heavy LLM+GitHub process in the background
+    background_tasks.add_task(
+        process_task,
+        email, task, briefs_rounds, attachments, round_num, nonce, evaluation_url
+    )
 
-        try:
-            repo, repo_url, pages_url, commit_sha = create_or_update_repo(email, task, rn, code_files)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"GitHub operation failed: {e}")
-
-        existing_files = task_repos.get((email, task), {}).get("files", {})
-        results.append({
-            "round": rn,
-            "repo_url": repo_url,
-            "pages_url": pages_url,
-            "commit_sha": commit_sha
-        })
-
-        if evaluation_url:
-            payload = {
-                "email": email,
-                "task": task,
-                "round": rn,
-                "nonce": nonce,
-                "repo_url": repo_url,
-                "pages_url": pages_url,
-                "commit_sha": commit_sha
-            }
-            notify_evaluation(evaluation_url, payload)
-
-    return {"status": "ok", "message": "Task processed via LLM", "results": results}
+    # Respond immediately
+    return {"status": "ok", "message": "Task accepted. Processing in background."}
 
 
 # ----------------------------- MAIN ----------------------------------
