@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException, Request
 import os, requests, uuid
 from datetime import datetime
 from github import Github
-# from openai import OpenAI
 
 # ----------------------------- CONFIG --------------------------------
 app = FastAPI()
@@ -10,10 +9,8 @@ app = FastAPI()
 SECRET_KEY = os.environ.get("SECRET_KEY", "testsecret")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 AIPIPE_KEY = os.environ.get("AIPIPE_KEY")
-# OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", AIPIPE_KEY)
 
-# Initialize OpenAI client
-# client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 # ----------------------------- IN-MEMORY STORAGE ---------------------
 # { (email, task): {"repo_url":..., "commit_sha":..., "pages_url":..., "timestamp":..., "files": {filename: content} } }
