@@ -1,10 +1,36 @@
 {
-    "email": "student@example.com",
-    "secret": "tdssecret2025",
-    "task": "hello-world-test",
-    "round": 1,
-    "nonce": "12345",
-    "brief": "Display 'Hello World!' dynamically",
-    "evaluation_url": "https://example.com/notify"
-  }
-  
+  "secret": "tdssecret2025",
+  "email": "testuser@example.com",
+  "task": "github-user-created",
+  "round": 1,
+  "nonce": "abc123",
+  "brief": "Publish a Bootstrap page with form id=\"github-user-${seed}\" that fetches a GitHub username and displays the account creation date in YYYY-MM-DD UTC inside #github-created-at.",
+  "checks": [
+    "js: document.querySelector('#github-user-${seed}').tagName === 'FORM'",
+    "js: document.querySelector('#github-created-at').textContent.includes('20')",
+    "js: !!document.querySelector('script').textContent.includes('https://api.github.com/users/')"
+  ],
+  "round2": [
+    {
+      "brief": "Show an aria-live alert #github-status that reports when a lookup starts, succeeds, or fails.",
+      "checks": [
+        "js: document.querySelector('#github-status').getAttribute('aria-live') === 'polite'",
+        "js: !!document.querySelector('script').textContent.includes('github-status')"
+      ]
+    },
+    {
+      "brief": "Display the account age in whole years inside #github-account-age alongside the creation date.",
+      "checks": [
+        "js: parseInt(document.querySelector('#github-account-age').textContent, 10) >= 0",
+        "js: document.querySelector('#github-account-age').textContent.toLowerCase().includes('years')"
+      ]
+    },
+    {
+      "brief": "Cache the last successful lookup in localStorage under 'github-user-${seed}' and repopulate the form on load.",
+      "checks": [
+        "js: !!document.querySelector('script').textContent.includes('localStorage.setItem(\"github-user-${seed}\")')",
+        "js: !!document.querySelector('script').textContent.includes('localStorage.getItem(\"github-user-${seed}\")')"
+      ]
+    }
+  ]
+}
