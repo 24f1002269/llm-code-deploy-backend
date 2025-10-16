@@ -4,6 +4,8 @@ import time
 from github import GithubException
 from .config import get_github_client, GITHUB_USERNAME, GITHUB_TOKEN
 from .code_generator import generate_readme as generate_readme_content
+from .asset_handler import process_html_assets
+from requests import RequestException
 
 
 def get_existing_code(task: str, path: str = "index.html") -> Optional[str]:
@@ -170,6 +172,13 @@ def create_or_update_repo(
     index_content = code_files.get(
         "index.html", "<html><body><h1>Welcome</h1></body></html>"
     )
+
+    print("Processing HTML assets (extracting large base64 data URIs)...")
+    try:
+        index_content = process_html_assets(index_content, repo, round_num)
+    except Exception as e:
+        print(f"Warning: Asset processing failed: {str(e)}")
+        print("Continuing with original HTML (data URIs intact)...")
 
     try:
         upsert_pages_index(
@@ -373,9 +382,46 @@ def upsert_pages_index(
             br = requests.post(f"{base}/repos/{owner}/{repo_name}/pages/builds", headers=hdrs, timeout=10)
             
             if br.status_code in (201, 202):
-                print("Pages build started successfully. Waiting 120 seconds for build to complete...")
-                time.sleep(120)  # Wait for GitHub Pages build to finish
-                print("Pages build should be complete now")
+                print("Pages build started successfully. Waiting for Pages to become available...")
+                def wait_for_github_pages(url: str, timeout: int = 600) -> bool:
+                    print(f"Waiting for GitHub Pages to become live at: {url}")
+                    start = time.time()
+
+                    initial_wait = 30
+                    time_elapsed = time.time() - start
+                    if time_elapsed < timeout:
+                        to_wait = min(initial_wait, timeout - time_elapsed)
+                        if to_wait > 0:
+                            print(f"Initial wait for {to_wait} seconds before first check...")
+                            time.sleep(to_wait)
+
+                    delay = 15  
+
+                    while time.time() - start < timeout:
+                        try:
+                            r = requests.get(url, timeout=10)
+                            if r.status_code == 200:
+                                print(f"GitHub Pages is live at: {url}")
+                                return True
+                            else:
+                                print(f"Still building... (status: {r.status_code})")
+                        except RequestException:
+                            print("Still building... (no response)")
+
+                        remaining = timeout - (time.time() - start)
+                        if remaining <= 0:
+                            break
+                        sleep_time = min(delay, remaining)
+                        time.sleep(sleep_time)
+
+                    print("Timeout: GitHub Pages did not go live within the expected time.")
+                    return False
+
+                try:
+                    wait_for_github_pages(f"https://{owner}.github.io/{repo_name}/", timeout=300)
+                except Exception as e:
+                    print(f"Warning: error while waiting for Pages: {str(e)}")
+                print("Pages build polling complete (may still be finalizing on GitHub's side)")
             else:
                 print(f"Pages build request returned {br.status_code}: {br.text} (non-critical, Pages will build automatically)")
         except Exception as e:
