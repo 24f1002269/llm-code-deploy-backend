@@ -1,0 +1,18 @@
+{
+    "secret": "tdssecret2025",
+    "email": "testuser@example.com",
+    "task": "github-user-created",
+    "round": 2,
+    "nonce": "abc123-round2",
+    "brief": "Show an aria-live alert #github-status that reports when a lookup starts, succeeds, or fails, display the account age in whole years inside #github-account-age alongside the creation date, and cache the last successful lookup in localStorage under 'github-user-${seed}' to repopulate the form on load.",
+    "checks": [
+      "js: document.querySelector('#github-status').getAttribute('aria-live') === 'polite'",
+      "js: !!document.querySelector('script').textContent.includes('github-status')",
+      "js: parseInt(document.querySelector('#github-account-age').textContent, 10) >= 0",
+      "js: document.querySelector('#github-account-age').textContent.toLowerCase().includes('years')",
+      "js: !!document.querySelector('script').textContent.includes('localStorage.setItem(\"github-user-${seed}\")')",
+      "js: !!document.querySelector('script').textContent.includes('localStorage.getItem(\"github-user-${seed}\")')"
+    ],
+    "evaluation_url": "https://example.com/evaluate"
+  }
+  

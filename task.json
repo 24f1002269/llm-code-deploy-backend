@@ -32,5 +32,6 @@
         "js: !!document.querySelector('script').textContent.includes('localStorage.getItem(\"github-user-${seed}\")')"
       ]
     }
-  ]
+  ],
+  "evaluation_url": "https://example.com/evaluate"
 }
