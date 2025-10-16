@@ -55,20 +55,22 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
 {existing_code_text[:15000]}
 """
 
-    print(f"\n🔹 Sending prompt to LLM (Round {round_num}) ...")
+    print(f"\n🔹 Sending prompt to AIPIPE (Round {round_num}) ...")
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
+    headers = {"Authorization": f"Bearer {AIPIPE_KEY}"}
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=0.3,
-    )
+        "temperature": 0.3
+    }
+    r = requests.post("https://api.aipipe.com/v1/chat/completions", headers=headers, json=payload)
+    r.raise_for_status()
+    code_text = r.json()["choices"][0]["message"]["content"].strip()
 
-    code_text = response.choices[0].message.content.strip()
-
-    # naive splitting: assume LLM outputs "filename.ext:\n<code>"
+    # Same file-splitting logic as before
     files = {}
     current_file = None
     buffer = []
@@ -83,16 +85,15 @@ def call_llm_generate_code(brief: str, checks: list = None, attachments: dict = 
     if current_file:
         files[current_file] = "\n".join(buffer).strip()
 
-    # fallback if no splitting detected
     if not files:
         files["index.html"] = f"<!DOCTYPE html>\n<html><body><pre>{code_text}</pre></body></html>"
 
-    # merge attachments if provided
     if attachments:
         for fname, content in attachments.items():
             files[fname] = content
 
     return files
+
 
 
 def safe_repo_name(task_id: str):
